@@ -1,0 +1,12 @@
+{
+  "name": "Kalorienzähler",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install flask google-generativeai pillow python-multipart",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "Kalorienzähler App",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
