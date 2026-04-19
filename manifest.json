@@ -1,0 +1,24 @@
+{
+  "name": "Kalorienzähler",
+  "short_name": "Kalorien",
+  "description": "Tägliche Kalorien mit KI tracken",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f5f0",
+  "theme_color": "#22c55e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
