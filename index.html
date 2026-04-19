@@ -725,8 +725,11 @@ function showDayDetail(d) {
 document.getElementById('todayDate').textContent =
   new Intl.DateTimeFormat('de-DE', {weekday:'long',day:'numeric',month:'long'}).format(new Date());
 
+// Alle alten Service Worker deregistrieren (verhindert Cache-Probleme)
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister());
+  });
 }
 </script>
 </body>
