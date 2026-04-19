@@ -12,7 +12,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 DATA_FILE = Path(__file__).parent / "data" / "meals.json"
 DATA_FILE.parent.mkdir(exist_ok=True)
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = "AIzaSyCCJFaxlc7Xsb7WHjmG-Kty7dhRkz05M2Y"
 
 
 def load_meals():
@@ -27,77 +27,55 @@ def save_meals(meals):
         json.dump(meals, f, ensure_ascii=False, indent=2)
 
 
-def analyze_meal(
-    plate: Optional[dict],   # { image_base64, image_mime, description }
-    items: List[dict],        # [{ description, image_base64, image_mime }]
-) -> dict:
-    import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+def analyze_meal(plate: Optional[dict], items: List[dict]) -> dict:
+    import google.generativeai as genai
+    from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-    content = []
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+
+    parts = []
     sections = []
 
-    # ── Plate photo ──
     if plate:
         if plate.get("image_base64"):
-            content.append({
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": plate.get("image_mime") or "image/jpeg",
+            parts.append({
+                "inline_data": {
+                    "mime_type": plate.get("image_mime") or "image/jpeg",
                     "data": plate["image_base64"],
-                },
+                }
             })
-            sections.append("TELLER-FOTO: Siehst du oben. " + (plate.get("description") or "Bitte analysiere den Inhalt des Tellers."))
+            sections.append("TELLER-FOTO: Siehst du oben. " + (plate.get("description") or "Bitte analysiere den Inhalt."))
         elif plate.get("description"):
             sections.append("MAHLZEIT-BESCHREIBUNG: " + plate["description"])
 
-    # ── Product photos ──
-    if items:
-        for i, item in enumerate(items, 1):
-            if item.get("image_base64"):
-                content.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": item.get("image_mime") or "image/jpeg",
-                        "data": item["image_base64"],
-                    },
-                })
-                sections.append(f"PRODUKT {i} (Foto weiter oben): {item['description']}")
-            else:
-                sections.append(f"PRODUKT {i}: {item['description']}")
-
-    combined = "\n".join(sections)
+    for i, item in enumerate(items, 1):
+        if item.get("image_base64"):
+            parts.append({
+                "inline_data": {
+                    "mime_type": item.get("image_mime") or "image/jpeg",
+                    "data": item["image_base64"],
+                }
+            })
+            sections.append(f"PRODUKT {i} (Foto weiter oben): {item['description']}")
+        else:
+            sections.append(f"PRODUKT {i}: {item['description']}")
 
     has_plate = bool(plate and (plate.get("image_base64") or plate.get("description")))
     has_products = bool(items)
 
     if has_plate and has_products:
-        instruction = (
-            "Du hast ein Teller-Foto und zusätzliche Produktfotos/-angaben erhalten.\n"
-            "Nutze die Produktfotos/Etiketten für exakte Label-Werte (auf die angegebene Menge umrechnen). "
-            "Ergänze fehlende Zutaten aus dem Teller-Foto durch Schätzung. "
-            "Berechne die Gesamtnährwerte für die komplette Mahlzeit."
-        )
+        instruction = "Du hast ein Teller-Foto und zusätzliche Produktfotos erhalten. Nutze Produktetiketten für exakte Werte, ergänze Rest aus Teller-Foto."
     elif has_products:
-        instruction = (
-            "Du hast Produktfotos/-angaben erhalten. "
-            "Lies Nährwertetiketten direkt ab, falls sichtbar, und rechne auf die angegebene Menge um. "
-            "Berechne die Gesamtnährwerte."
-        )
+        instruction = "Lies Nährwertetiketten direkt ab und rechne auf die angegebene Menge um."
     else:
-        instruction = (
-            "Du hast ein Foto eines Tellers / einer Mahlzeit erhalten. "
-            "Schätze alle Zutaten und Mengen anhand des Fotos und der Beschreibung. "
-            "Berechne die Gesamtnährwerte."
-        )
+        instruction = "Schätze alle Zutaten und Mengen anhand des Fotos und der Beschreibung."
 
     prompt = f"""{instruction}
 
-{combined}
+{chr(10).join(sections)}
 
-Antworte NUR mit einem JSON-Objekt in genau diesem Format (keine Erklärungen außerhalb des JSON):
+Antworte NUR mit einem JSON-Objekt (keine Erklärungen außerhalb):
 {{
   "name": "Kurzname der Mahlzeit (max. 40 Zeichen)",
   "kalorien": <ganze Zahl>,
@@ -105,21 +83,24 @@ Antworte NUR mit einem JSON-Objekt in genau diesem Format (keine Erklärungen au
   "kohlenhydrate_g": <Zahl, 1 Dezimalstelle>,
   "fett_g": <Zahl, 1 Dezimalstelle>,
   "produkte": [
-    {{"name": "Zutat oder Produkt", "menge": "z.B. 30g", "kalorien": 120}},
-    ...
+    {{"name": "Zutat", "menge": "30g", "kalorien": 120}}
   ],
-  "notiz": "Kurze Anmerkung zur Genauigkeit (1-2 Sätze)"
+  "notiz": "Kurze Anmerkung zur Genauigkeit"
 }}"""
 
-    content.append({"type": "text", "text": prompt})
+    parts.append({"text": prompt})
 
-    message = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=700,
-        messages=[{"role": "user", "content": content}],
+    response = model.generate_content(
+        parts,
+        safety_settings={
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
     )
 
-    raw = message.content[0].text.strip()
+    raw = response.text.strip()
     match = re.search(r'\{.*\}', raw, re.DOTALL)
     if match:
         return json.loads(match.group())
@@ -133,10 +114,6 @@ def index():
 
 @app.route("/api/log", methods=["POST"])
 def log_meal():
-    if not ANTHROPIC_API_KEY:
-        return jsonify({"error": "ANTHROPIC_API_KEY nicht gesetzt"}), 400
-
-    # ── Plate ──
     plate = None
     plate_desc = request.form.get("plate_description", "").strip()
     plate_file = request.files.get("plate_image")
@@ -146,7 +123,6 @@ def log_meal():
             plate["image_base64"] = base64.standard_b64encode(plate_file.read()).decode("utf-8")
             plate["image_mime"] = plate_file.content_type or "image/jpeg"
 
-    # ── Products ──
     items = []
     i = 1
     while True:
@@ -175,22 +151,15 @@ def log_meal():
     if today not in meals:
         meals[today] = []
 
-    # Build summary for display
     plate_summary = None
     if plate:
-        plate_summary = {
-            "beschreibung": plate.get("description") or "",
-            "hat_foto": bool(plate.get("image_base64")),
-        }
+        plate_summary = {"beschreibung": plate.get("description") or "", "hat_foto": bool(plate.get("image_base64"))}
 
     entry = {
         "id": len(meals[today]) + 1,
         "zeit": datetime.datetime.now().strftime("%H:%M"),
         "plate": plate_summary,
-        "items": [
-            {"beschreibung": it["description"], "hat_foto": bool(it["image_base64"])}
-            for it in items
-        ],
+        "items": [{"beschreibung": it["description"], "hat_foto": bool(it["image_base64"])} for it in items],
         **result,
     }
     meals[today].append(entry)
@@ -242,5 +211,5 @@ def tages_total(mahlzeiten: list) -> dict:
 
 
 if __name__ == "__main__":
-    print("Kalorienzähler läuft auf http://localhost:5000")
-    app.run(debug=True, port=5000)
+    print("Kalorienzähler läuft — öffne den Port 5000 Link oben in Codespaces")
+    app.run(host="0.0.0.0", debug=True, port=5000)
