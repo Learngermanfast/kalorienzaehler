@@ -305,7 +305,7 @@
         <textarea id="plateDesc" rows="2" placeholder="Optional: Was ist auf dem Teller? z.B. &quot;Pasta Bolognese, große Portion&quot;"></textarea>
       </div>
     </div>
-    <input type="file" id="plateInput" accept="image/*" capture="environment" style="display:none" onchange="handlePlate(event)"/>
+    <input type="file" id="plateInput" accept="image/*" style="display:none" onchange="handlePlate(event)"/>
   </div>
 
   <!-- Divider (both mode) -->
@@ -448,7 +448,7 @@ function renderProds() {
         </div>
       </div>
     </div>
-    <input type="file" id="pf${p.id}" accept="image/*" capture="environment"
+    <input type="file" id="pf${p.id}" accept="image/*"
       style="display:none" onchange="handleProdPhoto(${p.id},event)"/>
   `).join('');
 }
