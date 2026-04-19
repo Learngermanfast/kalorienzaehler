@@ -292,15 +292,17 @@
   <!-- Plate section -->
   <div class="sect on" id="s-plate">
     <div class="plate-card">
-      <div class="plate-zone" id="plateZone" onclick="triggerPlate()">
-        <div class="plate-ph">
-          <div class="ico">📸</div>
-          <p>Teller fotografieren</p>
-          <small>Tippe hier · Kamera oder Galerie</small>
+      <label for="plateInput" style="display:block;cursor:pointer">
+        <div class="plate-zone" id="plateZone">
+          <div class="plate-ph">
+            <div class="ico">📸</div>
+            <p>Teller fotografieren</p>
+            <small>Kamera oder Galerie wählen</small>
+          </div>
+          <img id="plateImg" alt=""/>
+          <button class="rm-plate" onclick="event.preventDefault();event.stopPropagation();removePlate()">✕ Entfernen</button>
         </div>
-        <img id="plateImg" alt=""/>
-        <button class="rm-plate" onclick="event.stopPropagation();removePlate()">✕ Entfernen</button>
-      </div>
+      </label>
       <div class="plate-desc">
         <textarea id="plateDesc" rows="2" placeholder="Optional: Was ist auf dem Teller? z.B. &quot;Pasta Bolognese, große Portion&quot;"></textarea>
       </div>
@@ -435,11 +437,13 @@ function renderProds() {
         ${prods.length > 1 ? `<button class="rm-prod" onclick="rmProd(${p.id})">✕</button>` : '<span></span>'}
       </div>
       <div class="prod-body">
-        <div class="thumb ${p.preview?'has':''}" onclick="triggerProdPhoto(${p.id})">
-          <span class="ci">📷</span>
-          <img src="${p.preview||''}" alt=""/>
-          <button class="rm-photo" onclick="event.stopPropagation();rmProdPhoto(${p.id})">✕</button>
-        </div>
+        <label for="pf${p.id}" style="cursor:pointer">
+          <div class="thumb ${p.preview?'has':''}">
+            <span class="ci">📷</span>
+            <img src="${p.preview||''}" alt=""/>
+            <button class="rm-photo" onclick="event.preventDefault();event.stopPropagation();rmProdPhoto(${p.id})">✕</button>
+          </div>
+        </label>
         <div class="prod-right">
           <input type="text" id="d${p.id}" value="${esc(p.desc)}"
             placeholder="z.B. 30g Granola, 150g Joghurt…"
